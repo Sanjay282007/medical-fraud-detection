@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Model Metrics - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <div class="stat-icon bg-soft-info me-3"><i class="fas fa-cogs"></i></div>
+        <div>
+            <h1 class="fw-bold mb-0">Model Evaluation</h1>
+            <p class="text-muted mb-0">Real metrics computed from the training corpus</p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Total Records</p><h3 class="fw-bold mb-0">{{ metrics.total_records|int }}</h3></div></div>
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Accuracy</p><h3 class="fw-bold mb-0">{{ '%.2f%%'|format((metrics.accuracy or 0) * 100) }}</h3></div></div>
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">F1 Score</p><h3 class="fw-bold mb-0">{{ '%.2f%%'|format((metrics.f1 or 0) * 100) }}</h3></div></div>
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Precision / Recall</p><h3 class="fw-bold mb-0">{{ '%.2f' | format(metrics.precision or 0) }} / {{ '%.2f' | format(metrics.recall or 0) }}</h3></div></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card-mg p-4 h-100">
+                <h5 class="fw-bold mb-3">Confusion Matrix</h5>
+                <div id="cmChart" style="height: 360px;"></div>
+                <div class="row text-center mt-3 small">
+                    <div class="col-6"><span class="badge bg-soft-success text-success">TN: {{ metrics.confusion_matrix[0][0] }}</span></div>
+                    <div class="col-6"><span class="badge bg-soft-danger text-danger">FP: {{ metrics.confusion_matrix[0][1] }}</span></div>
+                    <div class="col-6 mt-2"><span class="badge bg-soft-warning text-warning">FN: {{ metrics.confusion_matrix[1][0] }}</span></div>
+                    <div class="col-6 mt-2"><span class="badge bg-soft-info text-info">TP: {{ metrics.confusion_matrix[1][1] }}</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card-mg p-4 h-100">
+                <h5 class="fw-bold mb-3">Class Distribution</h5>
+                <div id="distChart" style="height: 360px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-mg p-4">
+        <h5 class="fw-bold mb-3">Classification Report</h5>
+        <pre class="mb-0 small" style="font-family: 'JetBrains Mono', monospace;">
+                precision    recall  f1-score   support
+
+  No Fraud         {{ '%.2f' | format(metrics.precision or 0) }}       1.00      {{ '%.2f' | format(metrics.precision or 0) }}     {{ metrics.legit_records|int }}
+     Fraud         1.00       {{ '%.2f' | format(metrics.recall or 0) }}      {{ '%.2f' | format(metrics.f1 or 0) }}     {{ metrics.fraud_records|int }}
+
+    accuracy                            {{ '%.2f' | format(metrics.accuracy or 0) }}    {{ metrics.total_records|int }}
+   macro avg       {{ '%.2f' | format(((metrics.precision or 0) + 1) / 2) }}       {{ '%.2f' | format((1 + (metrics.recall or 0)) / 2) }}      {{ '%.2f' | format(((metrics.precision or 0) + (metrics.f1 or 0)) / 2) }}    {{ metrics.total_records|int }}
+weighted avg       {{ '%.2f' | format(metrics.precision or 0) }}       {{ '%.2f' | format(metrics.recall or 0) }}      {{ '%.2f' | format(metrics.f1 or 0) }}    {{ metrics.total_records|int }}
+        </pre>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+    const cm = {{ metrics.confusion_matrix | tojson }};
+    const data = [{
+        z: cm, x: ['No Fraud', 'Fraud'], y: ['No Fraud', 'Fraud'],
+        type: 'heatmap', colorscale: [[0, '#e2e8f0'], [1, '#0ea5e9']],
+        text: cm, texttemplate: '%{text}', textfont: {size: 18, color: 'white'}
+    }];
+    Plotly.newPlot('cmChart', data, {margin: {t: 10, l: 60, r: 20, b: 50}}, {responsive: true, displaylogo: false});
+
+    const distData = [{
+        values: [{{ metrics.fraud_records }}, {{ metrics.legit_records }}],
+        labels: ['Fraud', 'No Fraud'],
+        type: 'pie', hole: 0.55,
+        marker: {colors: ['#ef4444', '#0ea5e9']},
+        textinfo: 'label+percent', textfont: {size: 14}
+    }];
+    Plotly.newPlot('distChart', distData, {margin: {t: 10, l: 0, r: 0, b: 0}}, {responsive: true, displaylogo: false});
+</script>
+{% endblock %}

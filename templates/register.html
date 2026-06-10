@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Register - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="min-height: calc(100vh - 70px); display: flex; align-items: center;">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-5 col-lg-4">
+            <div class="card-mg p-4 p-md-5">
+                <div class="text-center mb-4">
+                    <div class="stat-icon bg-soft-success mx-auto mb-3" style="width:64px;height:64px;font-size:1.6rem;">
+                        <i class="fas fa-user-plus"></i>
+                    </div>
+                    <h3 class="fw-bold mb-1">Create your account</h3>
+                    <p class="text-muted small mb-0">Join {{ app_name }} to start preventing fraud</p>
+                </div>
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" name="username" class="form-control" placeholder="Choose a username" required autofocus autocomplete="username">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control" placeholder="At least 8 chars, letters + digits" required autocomplete="new-password">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Confirm password</label>
+                        <input type="password" name="confirm_password" class="form-control" placeholder="Re-enter your password" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn btn-brand w-100 py-2 fw-semibold">
+                        <i class="fas fa-user-check me-2"></i>Create account
+                    </button>
+                </form>
+                <div class="text-center mt-4">
+                    <p class="small text-muted mb-0">Already have an account?</p>
+                    <a href="{{ url_for('auth.login') }}" class="text-brand fw-semibold text-decoration-none">Sign in</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

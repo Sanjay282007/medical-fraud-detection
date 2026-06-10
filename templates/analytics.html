@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Analytics - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <div class="stat-icon bg-soft-primary me-3"><i class="fas fa-chart-line"></i></div>
+        <div>
+            <h1 class="fw-bold mb-0">Analytics & Insights</h1>
+            <p class="text-muted mb-0">Trends, distributions, and financial loss prevention</p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Total Claims</p><h3 class="fw-bold mb-0">{{ total }}</h3></div></div>
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Fraud Cases</p><h3 class="fw-bold mb-0">{{ fraud }}</h3></div></div>
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Loss Prevented</p><h3 class="fw-bold mb-0 text-success">${{ '{:,.0f}'.format(loss_prevented) }}</h3></div></div>
+        <div class="col-md-3"><div class="stat-card"><p class="text-muted small mb-1">Avg Risk Score</p><h3 class="fw-bold mb-0">{{ avg_score }}</h3></div></div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card-mg p-4 h-100">
+                <h5 class="fw-bold mb-3">Monthly Claims vs Fraud</h5>
+                <div id="monthlyChart" style="height: 360px;"></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card-mg p-4 h-100">
+                <h5 class="fw-bold mb-3">Risk Distribution</h5>
+                <div id="riskChart" style="height: 360px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-12">
+            <div class="card-mg p-4">
+                <h5 class="fw-bold mb-3">Top Hospitals by Risk</h5>
+                <div id="hospitalChart" style="height: 360px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+    const months = {{ months | tojson }};
+    const monthlyTotal = {{ monthly_total | tojson }};
+    const monthlyFraud = {{ monthly_fraud | tojson }};
+    const monthlyTrace = [
+        { x: months, y: monthlyTotal, type: 'bar', name: 'Total', marker: {color: '#0ea5e9'} },
+        { x: months, y: monthlyFraud, type: 'bar', name: 'Fraud', marker: {color: '#ef4444'} }
+    ];
+    Plotly.newPlot('monthlyChart', monthlyTrace,
+        {barmode: 'group', margin: {t: 10, l: 40, r: 20, b: 40}, xaxis: {type: 'category'}},
+        {responsive: true, displaylogo: false});
+
+    const rd = {{ risk_distribution | tojson }};
+    const rdLabels = Object.keys(rd); const rdValues = Object.values(rd);
+    const colors = rdLabels.map(k => k === 'Critical' ? '#b91c1c' : k === 'High' ? '#ef4444' : k === 'Medium' ? '#f59e0b' : '#10b981');
+    Plotly.newPlot('riskChart',
+        [{ labels: rdLabels, values: rdValues, type: 'pie', hole: 0.55, marker: {colors: colors}, textinfo: 'label+percent' }],
+        {margin: {t: 10, l: 0, r: 0, b: 0}},
+        {responsive: true, displaylogo: false});
+
+    const hd = {{ hospital_data | tojson }};
+    Plotly.newPlot('hospitalChart',
+        [{ x: hd.map(h => h.name), y: hd.map(h => h.avg_risk), type: 'bar', marker: {color: '#6366f1'},
+           text: hd.map(h => h.avg_risk.toFixed(1)), textposition: 'outside' }],
+        {margin: {t: 20, l: 40, r: 20, b: 80}, yaxis: {title: 'Avg Risk Score', range: [0, 100]}},
+        {responsive: true, displaylogo: false});
+</script>
+{% endblock %}

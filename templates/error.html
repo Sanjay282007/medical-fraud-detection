@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Error {{ code }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5 text-center" style="min-height: 60vh;">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h1 class="display-1 display-mg text-brand fw-bold">{{ code }}</h1>
+            <h3 class="fw-bold mb-3">{{ message }}</h3>
+            <p class="text-muted mb-4">Don't worry, the system is still running. Let's get you back on track.</p>
+            <a href="{{ url_for('main.home') }}" class="btn btn-brand btn-lg">
+                <i class="fas fa-home me-2"></i>Back to home
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

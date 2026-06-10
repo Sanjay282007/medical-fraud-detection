@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Hospital Intel - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <div class="stat-icon bg-soft-warning me-3"><i class="fas fa-hospital"></i></div>
+        <div>
+            <h1 class="fw-bold mb-0">Hospital Risk Intelligence</h1>
+            <p class="text-muted mb-0">Providers ranked by average risk score and fraud rate</p>
+        </div>
+    </div>
+
+    <div class="card-mg p-4">
+        <div class="table-responsive">
+            <table class="table table-mg align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th><th>Hospital</th><th>Total Claims</th><th>Fraud</th>
+                        <th>Fraud Rate</th><th>Avg Risk</th><th>Risk</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for h in hospitals %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ h.name }}</td>
+                        <td>{{ h.total_claims or 0 }}</td>
+                        <td class="text-danger fw-semibold">{{ h.fraud_claims or 0 }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height: 6px; min-width: 80px;">
+                                    {% set rate = h.fraud_rate %}
+                                    <div class="progress-bar {% if rate > 50 %}bg-danger{% elif rate > 20 %}bg-warning{% else %}bg-success{% endif %}"
+                                         style="width: {{ rate }}%;"></div>
+                                </div>
+                                <span class="small">{{ rate }}%</span>
+                            </div>
+                        </td>
+                        <td><strong>{{ '%.1f'|format(h.avg_risk_score or 0) }}</strong> / 100</td>
+                        <td>
+                            {% set avg = h.avg_risk_score or 0 %}
+                            {% if avg >= 70 %}<span class="risk-pill risk-Critical">High</span>
+                            {% elif avg >= 40 %}<span class="risk-pill risk-Medium">Medium</span>
+                            {% else %}<span class="risk-pill risk-Low">Low</span>{% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">No hospital data yet. Submit claims to populate.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

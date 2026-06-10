@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - {{ app_name }}{% endblock %}
+
+{% block navbar %}
+<nav class="navbar navbar-mg sticky-top">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand" href="{{ url_for('main.home') }}">
+            <i class="fas fa-shield-virus me-2"></i>{{ app_name }}
+        </a>
+        <div class="d-flex align-items-center">
+            <span class="text-muted small me-3 d-none d-md-inline">
+                <i class="fas fa-user-circle me-1"></i>{{ session.username }}
+            </span>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-sign-out-alt me-1"></i>Logout
+            </a>
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <nav class="col-md-2 sidebar-mg d-none d-md-block">
+            <h6 class="text-uppercase text-muted small mb-3">Main</h6>
+            <ul class="nav flex-column mb-4">
+                <li class="nav-item"><a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}"><i class="fas fa-home me-2"></i>Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('claims.input_page') }}"><i class="fas fa-plus-circle me-2"></i>New Analysis</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}#recent"><i class="fas fa-history me-2"></i>Recent Claims</a></li>
+            </ul>
+            <h6 class="text-uppercase text-muted small mb-3">Analytics</h6>
+            <ul class="nav flex-column mb-4">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('claims.analytics') }}"><i class="fas fa-chart-line me-2"></i>Analytics</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('claims.hospitals') }}"><i class="fas fa-hospital me-2"></i>Hospital Intel</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.chart') }}"><i class="fas fa-cogs me-2"></i>Model Metrics</a></li>
+            </ul>
+        </nav>
+
+        <main class="col-md-10 ms-sm-auto px-md-4 py-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h2 fw-bold mb-0">Risk Analytics Dashboard</h1>
+                    <p class="text-muted mb-0 small">Live overview of claims, fraud, and investigations</p>
+                </div>
+                <a href="{{ url_for('claims.input_page') }}" class="btn btn-brand shadow-sm">
+                    <i class="fas fa-plus me-1"></i> New Claim Analysis
+                </a>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon bg-soft-primary me-3"><i class="fas fa-file-invoice"></i></div>
+                            <div>
+                                <p class="text-muted small mb-0">Total Claims</p>
+                                <h3 class="fw-bold mb-0">{{ total }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon bg-soft-danger me-3"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div>
+                                <p class="text-muted small mb-0">Fraudulent</p>
+                                <h3 class="fw-bold mb-0">{{ fraud }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon bg-soft-warning me-3"><i class="fas fa-search"></i></div>
+                            <div>
+                                <p class="text-muted small mb-0">Under Review</p>
+                                <h3 class="fw-bold mb-0">{{ under_review }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="stat-card">
+                        <div class="d-flex align-items-center">
+                            <div class="stat-icon bg-soft-success me-3"><i class="fas fa-dollar-sign"></i></div>
+                            <div>
+                                <p class="text-muted small mb-0">Loss Prevented</p>
+                                <h3 class="fw-bold mb-0">${{ '{:,.0f}'.format(loss_prevented) }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-lg-6">
+                    <div class="card-mg p-4 h-100">
+                        <h5 class="fw-bold mb-3"><i class="fas fa-chart-pie text-brand me-2"></i>Claims Distribution</h5>
+                        <div id="fraudChart" style="height: 320px;"></div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card-mg p-4 h-100">
+                        <h5 class="fw-bold mb-3"><i class="fas fa-chart-area text-brand me-2"></i>30-Day Trend</h5>
+                        <div id="trendChart" style="height: 320px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3" id="recent">
+                <div class="col-lg-12">
+                    <div class="card-mg p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold mb-0"><i class="fas fa-clock text-brand me-2"></i>Recent Analyses</h5>
+                            <a href="{{ url_for('claims.input_page') }}" class="btn btn-sm btn-outline-brand">Submit New</a>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-mg align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Claim ID</th>
+                                        <th>Hospital</th>
+                                        <th>Risk Score</th>
+                                        <th>Risk Level</th>
+                                        <th>Prediction</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for claim in recent_claims %}
+                                    <tr>
+                                        <td class="fw-bold">#{{ claim.id }}</td>
+                                        <td>{{ claim.hospital }}</td>
+                                        <td><strong>{{ '%.1f'|format(claim.risk_score) }}</strong> / 100</td>
+                                        <td><span class="risk-pill risk-{{ claim.risk_level }}">{{ claim.risk_level }}</span></td>
+                                        <td>
+                                            {% if claim.prediction == 'Fraud' %}
+                                                <span class="text-danger fw-semibold"><i class="fas fa-exclamation-circle me-1"></i>Fraud</span>
+                                            {% else %}
+                                                <span class="text-success fw-semibold"><i class="fas fa-check-circle me-1"></i>No Fraud</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><span class="badge bg-light text-dark border">{{ claim.status }}</span></td>
+                                        <td class="text-muted small">{{ claim.timestamp.strftime('%Y-%m-%d') }}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr><td colspan="7" class="text-center text-muted py-4">No claims yet. Submit your first analysis to populate the dashboard.</td></tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+    const graphJson = {{ graph_json | safe }};
+    if (graphJson) {
+        Plotly.newPlot('fraudChart', graphJson.data, graphJson.layout, {responsive: true, displaylogo: false});
+    } else {
+        document.getElementById('fraudChart').innerHTML =
+            '<div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted"><i class="fas fa-chart-pie fa-3x mb-3 opacity-25"></i><p>Submit a claim to generate analytics</p></div>';
+    }
+    const trendData = [{
+        x: {{ trend_labels | tojson }},
+        y: {{ trend_values | tojson }},
+        type: 'scatter', mode: 'lines+markers',
+        line: { color: '#0ea5e9', width: 3, shape: 'spline' },
+        marker: { size: 8, color: '#0ea5e9' },
+        fill: 'tozeroy', fillcolor: 'rgba(14, 165, 233, 0.1)'
+    }];
+    const trendLayout = {
+        margin: {t: 10, l: 40, r: 20, b: 40},
+        xaxis: { gridcolor: '#f1f5f9' },
+        yaxis: { gridcolor: '#f1f5f9', rangemode: 'tozero' }
+    };
+    Plotly.newPlot('trendChart', trendData, trendLayout, {responsive: true, displaylogo: false});
+</script>
+{% endblock %}

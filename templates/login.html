@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Login - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="min-height: calc(100vh - 70px); display: flex; align-items: center;">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-5 col-lg-4">
+            <div class="card-mg p-4 p-md-5">
+                <div class="text-center mb-4">
+                    <div class="stat-icon bg-soft-primary mx-auto mb-3" style="width:64px;height:64px;font-size:1.6rem;">
+                        <i class="fas fa-shield-virus"></i>
+                    </div>
+                    <h3 class="fw-bold mb-1">Welcome back</h3>
+                    <p class="text-muted small mb-0">Sign in to access the {{ app_name }} dashboard</p>
+                </div>
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" name="username" class="form-control" placeholder="Enter your username" required autofocus autocomplete="username">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn btn-brand w-100 py-2 fw-semibold">
+                        <i class="fas fa-sign-in-alt me-2"></i>Sign in
+                    </button>
+                </form>
+                <div class="text-center mt-4">
+                    <p class="small text-muted mb-0">New to the platform?</p>
+                    <a href="{{ url_for('auth.register') }}" class="text-brand fw-semibold text-decoration-none">Create an account</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
