@@ -7,70 +7,70 @@
         <div class="col-lg-10">
             <div class="card-mg p-4 p-md-5">
                 <div class="d-flex align-items-center mb-4">
-                    <div class="stat-icon bg-soft-primary me-3"><i class="fas fa-plus-circle"></i></div>
+                    <div class="stat-icon bg-soft-primary me-3"><i class="fas fa-search-dollar"></i></div>
                     <div>
-                        <h2 class="fw-bold mb-0">New Fraud Risk Assessment</h2>
-                        <p class="text-muted mb-0">Submit a claim for multi-layer AI verification</p>
+                        <h2 class="fw-bold mb-0 text-dark">Fraud Intelligence Scoring</h2>
+                        <p class="text-secondary mb-0">Initialize multi-layer AI verification for healthcare claims</p>
                     </div>
                 </div>
 
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-                    <h6 class="section-title mb-3"><i class="fas fa-hospital me-1"></i> Provider & Claim</h6>
+                    <h6 class="section-title mb-3"><i class="fas fa-hospital-alt me-1"></i> Entity & Claim Metadata</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label">Hospital</label>
-                            <input type="text" name="hospital" class="form-control {% if 'hospital' in errors %}is-invalid{% endif %}" placeholder="e.g. City General" value="{{ form_data.get('hospital', '') }}" required> # Already correct
+                            <label class="form-label">Healthcare Facility</label>
+                            <input type="text" name="hospital" class="form-control {% if 'hospital' in errors %}is-invalid{% endif %}" placeholder="e.g. City General" value="{{ form_data.get('hospital', '') }}" required>  
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Provider</label>
-                            <input type="text" name="provider" class="form-control {% if 'provider' in errors %}is-invalid{% endif %}" placeholder="e.g. Dr. Smith" value="{{ form_data.get('provider', '') }}" required> # Already correct
+                            <label class="form-label">Medical Provider</label>
+                            <input type="text" name="provider" class="form-control {% if 'provider' in errors %}is-invalid{% endif %}" placeholder="e.g. Dr. Smith" value="{{ form_data.get('provider', '') }}" required>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">Diagnosis</label>
-                            <input type="text" name="diagnosis_code" class="form-control" placeholder="I10" value="{{ form_data.get('diagnosis_code', '') }}"> # Already correct
+                            <label class="form-label">ICD Code</label>
+                            <input type="text" name="diagnosis_code" class="form-control" placeholder="I10" value="{{ form_data.get('diagnosis_code', '') }}">
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">Amount ($)</label>
-                            <input type="number" step="0.01" min="0" name="claim_amount" class="form-control {% if 'claim_amount' in errors %}is-invalid{% endif %}" placeholder="0.00" value="{{ form_data.get('claim_amount', '') }}" required> # Already correct
+                            <label class="form-label">Billed Amount ($)</label>
+                            <input type="number" step="0.01" min="0" name="claim_amount" class="form-control {% if 'claim_amount' in errors %}is-invalid{% endif %}" placeholder="0.00" value="{{ form_data.get('claim_amount', '') }}" required>
                         </div>
                     </div>
 
-                    <h6 class="section-title mb-3"><i class="fas fa-dollar-sign me-1"></i> Deductible Information</h6>
+                    <h6 class="section-title mb-3"><i class="fas fa-file-invoice-dollar me-1"></i> Annual Deductible Profile</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label">Inpatient Annual Deductible ($)</label>
-                            <input type="number" step="0.01" min="0" name="IPAnnualDeductibleAmt" class="form-control {% if 'IPAnnualDeductibleAmt' in errors %}is-invalid{% endif %}" value="{{ form_data.get('IPAnnualDeductibleAmt', '') }}" required> # Already correct
+                            <label class="form-label">Inpatient Deductible Accumulator ($)</label>
+                            <input type="number" step="0.01" min="0" name="IPAnnualDeductibleAmt" class="form-control {% if 'IPAnnualDeductibleAmt' in errors %}is-invalid{% endif %}" value="{{ form_data.get('IPAnnualDeductibleAmt', '') }}" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Outpatient Annual Deductible ($)</label>
-                            <input type="number" step="0.01" min="0" name="OPAnnualDeductibleAmt" class="form-control {% if 'OPAnnualDeductibleAmt' in errors %}is-invalid{% endif %}" value="{{ form_data.get('OPAnnualDeductibleAmt', '') }}" required> # Already correct
+                            <label class="form-label">Outpatient Deductible Accumulator ($)</label>
+                            <input type="number" step="0.01" min="0" name="OPAnnualDeductibleAmt" class="form-control {% if 'OPAnnualDeductibleAmt' in errors %}is-invalid{% endif %}" value="{{ form_data.get('OPAnnualDeductibleAmt', '') }}" required>
                         </div>
                     </div>
 
-                    <h6 class="section-title mb-3"><i class="fas fa-notes-medical me-1"></i> Medical Condition Profile</h6>
+                    <h6 class="section-title mb-3"><i class="fas fa-user-md me-1"></i> Chronic Condition Profile</h6>
                     <div class="row g-3 mb-4">
                         {% set conditions = [
-                            ('RenalDiseaseIndicator', 'Renal Disease'),
-                            ('ChronicCond_Alzheimer', 'Alzheimer'),
+                            ('RenalDiseaseIndicator', 'Renal Impairment'),
+                            ('ChronicCond_Alzheimer', 'Alzheimer Disease'),
                             ('ChronicCond_Heartfailure', 'Heart Failure'),
-                            ('ChronicCond_KidneyDisease', 'Kidney Disease'),
-                            ('ChronicCond_Cancer', 'Cancer'),
-                            ('ChronicCond_ObstrPulmonary', 'Pulmonary Obstruction'),
-                            ('ChronicCond_Depression', 'Depression'),
-                            ('ChronicCond_Diabetes', 'Diabetes'),
-                            ('ChronicCond_IschemicHeart', 'Ischemic Heart'),
+                            ('ChronicCond_KidneyDisease', 'CKD Staging'),
+                            ('ChronicCond_Cancer', 'Malignancy History'),
+                            ('ChronicCond_ObstrPulmonary', 'COPD Status'),
+                            ('ChronicCond_Depression', 'Major Depression'),
+                            ('ChronicCond_Diabetes', 'Diabetes Mellitus'),
+                            ('ChronicCond_IschemicHeart', 'Ischemic Heart Disease'),
                             ('ChronicCond_Osteoporasis', 'Osteoporosis'),
-                            ('ChronicCond_rheumatoidarthritis', 'Arthritis'),
-                            ('ChronicCond_stroke', 'Stroke')
+                            ('ChronicCond_rheumatoidarthritis', 'Rheumatoid Arthritis'),
+                            ('ChronicCond_stroke', 'Cerebrovascular Status')
                         ] %}
                         {% for field, label in conditions %}
                         <div class="col-md-4 col-lg-3">
                             <label class="form-label">{{ label }}</label>
-                            <select name="{{ field }}" class="form-select {% if field in errors %}is-invalid{% endif %}" required> # Already correct
-                                <option value="0" {% if form_data.get(field, '0') == '0' %}selected{% endif %}>Negative (0)</option> # Already correct
-                                <option value="1" {% if form_data.get(field, '0') == '1' %}selected{% endif %}>Positive (1)</option> # Already correct
+                            <select name="{{ field }}" class="form-select {% if field in errors %}is-invalid{% endif %}" required>
+                                <option value="0" {% if form_data.get(field, '0') == '0' %}selected{% endif %}>Not Present (0)</option>
+                                <option value="1" {% if form_data.get(field, '0') == '1' %}selected{% endif %}>Confirmed (1)</option>
                             </select>
                         </div>
                         {% endfor %}
@@ -78,9 +78,9 @@
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-brand btn-lg px-4 flex-grow-1">
-                            <i class="fas fa-shield-virus me-2"></i>Run Multi-Layer Detection
+                            <i class="fas fa-microchip me-2"></i>Launch Fraud Intelligence Engine
                         </button>
-                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-lg px-4">Cancel</a>
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-lg px-4">Exit Analysis</a>
                     </div>
                 </form>
             </div>

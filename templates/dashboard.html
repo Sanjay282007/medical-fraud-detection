@@ -1,43 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - {{ app_name }}{% endblock %}
 
-{% block navbar %}
-<nav class="navbar navbar-mg sticky-top">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand" href="{{ url_for('main.home') }}">
-            <i class="fas fa-shield-virus me-2"></i>{{ app_name }}
-        </a>
-        <div class="d-flex align-items-center">
-            <span class="text-muted small me-3 d-none d-md-inline">
-                <i class="fas fa-user-circle me-1"></i>{{ session.username }}
-            </span>
-            <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-sign-out-alt me-1"></i>Logout
-            </a>
-        </div>
-    </div>
-</nav>
-{% endblock %}
+
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <nav class="col-md-2 sidebar-mg d-none d-md-block">
-            <h6 class="text-uppercase text-muted small mb-3">Main</h6>
-            <ul class="nav flex-column mb-4">
-                <li class="nav-item"><a class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}"><i class="fas fa-home me-2"></i>Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('claims.input_page') }}"><i class="fas fa-plus-circle me-2"></i>New Analysis</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dashboard') }}#recent"><i class="fas fa-history me-2"></i>Recent Claims</a></li>
-            </ul>
-            <h6 class="text-uppercase text-muted small mb-3">Analytics</h6>
-            <ul class="nav flex-column mb-4">
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('claims.analytics') }}"><i class="fas fa-chart-line me-2"></i>Analytics</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('claims.hospitals') }}"><i class="fas fa-hospital me-2"></i>Hospital Intel</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.chart') }}"><i class="fas fa-cogs me-2"></i>Model Metrics</a></li>
-            </ul>
-        </nav>
-
-        <main class="col-md-10 ms-sm-auto px-md-4 py-4">
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
                 <div>
                     <h1 class="h2 fw-bold mb-0">Risk Analytics Dashboard</h1>
@@ -96,16 +62,50 @@
             </div>
 
             <div class="row g-3 mb-4">
-                <div class="col-lg-6">
-                    <div class="card-mg p-4 h-100">
-                        <h5 class="fw-bold mb-3"><i class="fas fa-chart-pie text-brand me-2"></i>Claims Distribution</h5>
-                        <div id="fraudChart" style="height: 320px;"></div>
+                <div class="col-lg-8">
+                    <div class="row g-3 h-100">
+                        <div class="col-md-6">
+                            <div class="card-mg p-4 h-100">
+                                <h5 class="fw-bold mb-3"><i class="fas fa-chart-pie text-brand me-2"></i>Claims Distribution</h5>
+                                <div id="fraudChart" style="height: 280px;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card-mg p-4 h-100">
+                                <h5 class="fw-bold mb-3"><i class="fas fa-chart-area text-brand me-2"></i>30-Day Trend</h5>
+                                <div id="trendChart" style="height: 280px;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div class="col-lg-4">
                     <div class="card-mg p-4 h-100">
-                        <h5 class="fw-bold mb-3"><i class="fas fa-chart-area text-brand me-2"></i>30-Day Trend</h5>
-                        <div id="trendChart" style="height: 320px;"></div>
+                        <h5 class="fw-bold mb-3"><i class="fas fa-bolt text-warning me-2"></i>Quick Actions</h5>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('claims.input_page') }}" class="btn btn-brand text-start">
+                                <i class="fas fa-plus-circle me-2"></i>New Fraud Analysis
+                            </a>
+                            <a href="{{ url_for('claims.analytics') }}" class="btn btn-outline-brand text-start">
+                                <i class="fas fa-chart-line me-2"></i>View Financial Analytics
+                            </a>
+                            <a href="{{ url_for('claims.hospitals') }}" class="btn btn-outline-brand text-start">
+                                <i class="fas fa-hospital me-2"></i>Hospital Risk Intel
+                            </a>
+                            <a href="{{ url_for('main.chart') }}" class="btn btn-outline-brand text-start">
+                                <i class="fas fa-microchip me-2"></i>Model Performance
+                            </a>
+                        </div>
+                        <div class="mt-4 pt-3 border-top border-white-5">
+                            <h6 class="text-muted small text-uppercase fw-bold mb-2">System Status</h6>
+                            <div class="d-flex align-items-center mb-1">
+                                <div class="bg-success rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+                                <span class="small text-secondary">AI Engine: Online</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-success rounded-circle me-2" style="width: 8px; height: 8px;"></div>
+                                <span class="small text-secondary">Database: Connected</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -156,9 +156,6 @@
                     </div>
                 </div>
             </div>
-        </main>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -166,6 +163,24 @@
 <script>
     const graphJson = {{ graph_json | safe }};
     if (graphJson) {
+        graphJson.layout.paper_bgcolor = 'rgba(0,0,0,0)';
+        graphJson.layout.plot_bgcolor = 'rgba(0,0,0,0)';
+        graphJson.layout.font = { family: 'Inter, sans-serif', color: '#94a3b8', size: 11 };
+        if (graphJson.layout.title && typeof graphJson.layout.title === 'object') {
+            graphJson.layout.title.font = { family: 'Poppins, sans-serif', color: '#0f172a', size: 14 };
+        } else if (typeof graphJson.layout.title === 'string') {
+            const titleText = graphJson.layout.title;
+            graphJson.layout.title = { text: titleText };
+            graphJson.layout.title.font = { family: 'Poppins, sans-serif', color: '#0f172a', size: 14 };
+        }
+        if (graphJson.data && graphJson.data[0]) {
+            graphJson.data[0].marker = {
+                colors: ['#f87171', '#38bdf8']
+            };
+            graphJson.data[0].textinfo = 'percent';
+            graphJson.data[0].hoverinfo = 'label+value';
+            graphJson.data[0].hole = 0.6;
+        }
         Plotly.newPlot('fraudChart', graphJson.data, graphJson.layout, {responsive: true, displaylogo: false});
     } else {
         document.getElementById('fraudChart').innerHTML =
@@ -175,14 +190,17 @@
         x: {{ trend_labels | tojson }},
         y: {{ trend_values | tojson }},
         type: 'scatter', mode: 'lines+markers',
-        line: { color: '#0ea5e9', width: 3, shape: 'spline' },
-        marker: { size: 8, color: '#0ea5e9' },
-        fill: 'tozeroy', fillcolor: 'rgba(14, 165, 233, 0.1)'
+        line: { color: '#38bdf8', width: 3, shape: 'spline' },
+        marker: { size: 8, color: '#38bdf8', borderwidth: 2, bordercolor: '#0b0f19' },
+        fill: 'tozeroy', fillcolor: 'rgba(56, 189, 248, 0.05)'
     }];
     const trendLayout = {
-        margin: {t: 10, l: 40, r: 20, b: 40},
-        xaxis: { gridcolor: '#f1f5f9' },
-        yaxis: { gridcolor: '#f1f5f9', rangemode: 'tozero' }
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: {t: 20, l: 40, r: 20, b: 40},
+        font: { family: 'Inter, sans-serif', color: '#94a3b8' },
+        xaxis: { gridcolor: 'rgba(255,255,255,0.04)', linecolor: 'rgba(255,255,255,0.06)' },
+        yaxis: { gridcolor: 'rgba(255,255,255,0.04)', linecolor: 'rgba(255,255,255,0.06)', rangemode: 'tozero' }
     };
     Plotly.newPlot('trendChart', trendData, trendLayout, {responsive: true, displaylogo: false});
 </script>

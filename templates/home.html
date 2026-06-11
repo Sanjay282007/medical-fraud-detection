@@ -27,30 +27,34 @@
 </nav>
 {% endblock %}
 
-{% block content %}
+{% block main_container %}
 <header class="page-header">
     <div class="container position-relative">
         <div class="row align-items-center g-5">
             <div class="col-lg-7">
                 <span class="badge bg-soft-primary text-brand mb-3 px-3 py-2 rounded-pill">
-                    <i class="fas fa-bolt me-1"></i> Explainable AI
+                    <i class="fas fa-bolt me-1"></i> Multi-Layer Risk Intelligence
                 </span>
-                <h1 class="display-3 display-mg text-white mb-3">
-                    Prevent Medical Fraud<br>with <span class="text-brand">Multi-Layer AI</span>
+                <h1 class="display-3 display-mg mb-3">
+                    Healthcare Fraud<br><span class="text-brand">Prevention Intelligence</span>
                 </h1>
-                <p class="lead text-light opacity-75 mb-4">
-                    Combining rule-based validation, machine learning, anomaly detection
-                    and investigator workflow to catch fraudulent claims in seconds - not weeks.
+                <p class="lead text-secondary opacity-75 mb-4">
+                    The enterprise standard for detecting medical billing anomalies. 
+                    Leveraging explainable AI, heuristic modeling, and provider benchmarking 
+                    to safeguard financial integrity.
                 </p>
                 <div class="d-flex flex-wrap gap-3">
                     <a href="{{ url_for('auth.register') }}" class="btn btn-brand btn-lg px-4">
-                        <i class="fas fa-rocket me-2"></i>Start Analysis
+                        <i class="fas fa-rocket me-2"></i>Launch Risk Assessment
                     </a>
-                    <a href="#features" class="btn btn-outline-light btn-lg px-4">Learn more</a>
+                    <a href="#features" class="btn btn-outline-brand btn-lg px-4">Platform Overview</a>
                 </div>
             </div>
             <div class="col-lg-5 d-none d-lg-block text-center">
-                <img src="{{ url_for('static', filename='6.jpg') }}" alt="Healthcare" class="img-fluid rounded-4 shadow-lg" style="max-height: 380px; object-fit: cover;">
+                <div class="position-relative">
+                    <div class="position-absolute top-50 start-50 translate-middle bg-brand opacity-10 rounded-circle" style="width: 400px; height: 400px; filter: blur(60px);"></div>
+                    <img src="{{ url_for('static', filename='6.jpg') }}" alt="Healthcare" class="img-fluid rounded-4 shadow-lg position-relative" style="max-height: 380px; object-fit: cover;">
+                </div>
             </div>
         </div>
     </div>
@@ -59,16 +63,16 @@
 <section id="features" class="py-5" style="margin-top: 2rem;">
     <div class="container">
         <div class="text-center mb-5">
-            <p class="section-title">Why {{ app_name }}</p>
-            <h2 class="display-5 display-mg">Enterprise-grade protection</h2>
-            <p class="text-muted">Four layers of defense, one unified workflow.</p>
+            <p class="section-title">Core Intelligence Layers</p>
+            <h2 class="display-5 display-mg">Enterprise Fraud Protection</h2>
+            <p class="text-secondary">Integrated systems designed for high-accuracy risk detection.</p>
         </div>
         <div class="row g-4">
             <div class="col-md-6 col-lg-3">
                 <div class="feature-card">
                     <div class="feature-icon"><i class="fas fa-microscope"></i></div>
                     <h4 class="fw-bold">Explainable AI</h4>
-                    <p class="text-muted mb-0">Every prediction ships with SHAP-style feature importance and human-readable reasons.</p>
+                    <p class="text-secondary mb-0">SHAP-derived feature importance provides full transparency for every fraud prediction.</p>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3">
@@ -76,8 +80,8 @@
                     <div class="feature-icon" style="background: rgba(99, 102, 241, 0.1); color: #6366f1;">
                         <i class="fas fa-layer-group"></i>
                     </div>
-                    <h4 class="fw-bold">Multi-Layer Logic</h4>
-                    <p class="text-muted mb-0">Heuristics + ML + pattern analysis + investigator review working in concert.</p>
+                    <h4 class="fw-bold">Heuristic Analysis</h4>
+                    <p class="text-secondary mb-0">Domain-specific rules detect patterns of over-billing and clinical profile anomalies.</p>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3">
@@ -85,8 +89,8 @@
                     <div class="feature-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
                         <i class="fas fa-hospital"></i>
                     </div>
-                    <h4 class="fw-bold">Hospital Intel</h4>
-                    <p class="text-muted mb-0">Track risky providers, surface suspicious clusters, and benchmark across the network.</p>
+                    <h4 class="fw-bold">Provider Intel</h4>
+                    <p class="text-secondary mb-0">Global benchmarking surfaces suspicious provider clusters and systematic risk.</p>
                 </div>
             </div>
             <div class="col-md-6 col-lg-3">
@@ -94,8 +98,8 @@
                     <div class="feature-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
                         <i class="fas fa-user-shield"></i>
                     </div>
-                    <h4 class="fw-bold">Investigation</h4>
-                    <p class="text-muted mb-0">Built-in workflow: submit, review, investigate, verify, clear or confirm fraud.</p>
+                    <h4 class="fw-bold">Auditor Center</h4>
+                    <p class="text-secondary mb-0">Full workflow management from initial detection to confirmed fraud recovery.</p>
                 </div>
             </div>
         </div>
@@ -105,37 +109,37 @@
 <section id="how" class="py-5 bg-white">
     <div class="container">
         <div class="text-center mb-5">
-            <p class="section-title">How it works</p>
-            <h2 class="display-5 display-mg">From claim to verdict in 4 steps</h2>
+            <p class="section-title">The Intelligence Pipeline</p>
+            <h2 class="display-5 display-mg">Streamlined Detection Workflow</h2>
         </div>
         <div class="row g-4">
             <div class="col-md-3 text-center">
                 <div class="stat-icon bg-soft-primary mx-auto mb-3" style="width:64px;height:64px;font-size:1.6rem;">
                     <i class="fas fa-file-medical"></i>
                 </div>
-                <h6 class="fw-bold">1. Submit Claim</h6>
-                <p class="text-muted small mb-0">Provider submits a claim with patient history.</p>
+                <h6 class="fw-bold">1. Data Ingestion</h6>
+                <p class="text-secondary small mb-0">Securely submit claim and patient profile data.</p>
             </div>
             <div class="col-md-3 text-center">
                 <div class="stat-icon bg-soft-info mx-auto mb-3" style="width:64px;height:64px;font-size:1.6rem;">
                     <i class="fas fa-brain"></i>
                 </div>
-                <h6 class="fw-bold">2. Multi-Layer Scoring</h6>
-                <p class="text-muted small mb-0">Rules + ML + pattern analysis returns a 0-100 risk score.</p>
+                <h6 class="fw-bold">2. Scoring Engine</h6>
+                <p class="text-secondary small mb-0">Multi-layer algorithms generate high-fidelity risk scores.</p>
             </div>
             <div class="col-md-3 text-center">
                 <div class="stat-icon bg-soft-warning mx-auto mb-3" style="width:64px;height:64px;font-size:1.6rem;">
                     <i class="fas fa-search"></i>
                 </div>
-                <h6 class="fw-bold">3. Investigator Review</h6>
-                <p class="text-muted small mb-0">High-risk claims are queued for an investigator.</p>
+                <h6 class="fw-bold">3. Auditor Triage</h6>
+                <p class="text-secondary small mb-0">High-risk cases are queued for immediate investigator review.</p>
             </div>
             <div class="col-md-3 text-center">
                 <div class="stat-icon bg-soft-success mx-auto mb-3" style="width:64px;height:64px;font-size:1.6rem;">
                     <i class="fas fa-check-double"></i>
                 </div>
-                <h6 class="fw-bold">4. Verdict & Action</h6>
-                <p class="text-muted small mb-0">Cleared, verified, or confirmed fraud with full audit trail.</p>
+                <h6 class="fw-bold">4. Final Verdict</h6>
+                <p class="text-secondary small mb-0">Clear, verify, or confirm fraud with complete audit trails.</p>
             </div>
         </div>
     </div>

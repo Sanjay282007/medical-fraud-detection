@@ -14,17 +14,17 @@ from __future__ import annotations
 import io
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone # Already imported
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
 from flask import (
-    Blueprint, abort, flash, jsonify, redirect, render_template, request,
-    send_file, session, url_for
+    Blueprint, abort, current_app, flash, jsonify, redirect, render_template, 
+    request, send_file, session, url_for
 )
-from sqlalchemy import func, or_ # Already imported
+from sqlalchemy import func, or_, and_
 
-from models import AuditEvent, ClaimRecord, Hospital, Investigation, db
+from models import AuditEvent, ClaimRecord, Hospital, Investigation, Provider, db
 from routes.auth import admin_required, login_required
 from utils.model_loader import get_model, model_error, predict_proba_safe
 from utils.risk_engine import calculate_multi_layer_risk
@@ -55,14 +55,14 @@ def input_page():
         model = get_model()
         if model is None:
             flash(f"Model unavailable: {model_error() or 'unknown error'}.", "danger")
-            return render_template("input.html", form_data=request.form, errors=[]) # Already correct
+            return render_template("input.html", form_data=request.form, errors=[])
 
         form_data = {}
         invalid_field_keys = []
         friendly_errors = []
 
         # Validate numeric fields
-        numeric_cols = INPUT_COLUMNS + ["claim_amount", "IPAnnualDeductibleAmt", "OPAnnualDeductibleAmt"]
+        numeric_cols = INPUT_COLUMNS + ["claim_amount"]
         for col in numeric_cols:
             val = request.form.get(col, "").strip()
             if val:
@@ -73,7 +73,13 @@ def input_page():
                     friendly_name = col.replace("ChronicCond_", "").replace("Indicator", "").replace("Amt", " Amount")
                     friendly_errors.append(friendly_name)
             else:
-                form_data[col] = 0.0 # Default to 0.0 for empty numeric fields # Already correct
+                form_data[col] = 0.0 # Default to 0.0 for empty numeric fields
+
+        # Logical validation: Claim amount must be positive
+        if form_data.get("claim_amount", 0) <= 0:
+            if "claim_amount" not in invalid_field_keys:
+                invalid_field_keys.append("claim_amount")
+                friendly_errors.append("Claim Amount (must be greater than 0)")
 
         # Handle required text fields
         required_text_fields = ["hospital", "provider"]
@@ -82,7 +88,16 @@ def input_page():
             if not val:
                 invalid_field_keys.append(col)
                 friendly_errors.append(col.replace("_", " ").title())
-            form_data[col] = val # Store even if empty for re-rendering # Already correct
+            elif len(val) > 120:
+                invalid_field_keys.append(col)
+                friendly_errors.append(f"{col.title()} Name (max 120 characters)")
+            form_data[col] = val # Store even if empty for re-rendering
+
+        # Diagnosis code length validation
+        diag = request.form.get("diagnosis_code", "").strip()
+        if diag and len(diag) > 20:
+            invalid_field_keys.append("diagnosis_code")
+            friendly_errors.append("Diagnosis Code (max 20 characters)")
 
         if invalid_field_keys:
             flash(f"Data Validation Error: Please enter valid data for: {', '.join(friendly_errors)}", "danger")
@@ -91,16 +106,17 @@ def input_page():
         try:
             input_df = pd.DataFrame([form_data])[INPUT_COLUMNS]
             ml_prob = predict_proba_safe(model, input_df)
+            ml_prob = float(ml_prob) if ml_prob is not None else 0.0
         except Exception as exc:
             flash(f"Model prediction error: {exc}", "danger")
-            return render_template("input.html", form_data=request.form, errors=[]) # Already correct
+            return render_template("input.html", form_data=request.form, errors=[])
 
         risk = calculate_multi_layer_risk(form_data, ml_prob)
 
         record = ClaimRecord(
             username=session["username"],
-            hospital=form_data.get("hospital", "Unknown"), # Already correct
-            provider=form_data.get("provider", "Unknown"), # Already correct
+            hospital=form_data.get("hospital", "Unknown"),
+            provider=form_data.get("provider", "Unknown"),
             diagnosis_code=request.form.get("diagnosis_code", "").strip(),
             claim_amount=float(request.form.get("claim_amount", 0) or 0),
             renal_disease=form_data["RenalDiseaseIndicator"],
@@ -135,55 +151,87 @@ def input_page():
             action="Created", note="Claim submitted by provider",
         ))
 
-        # Hospital intelligence
-        _update_hospital_stats(record)
-        _update_provider_stats(record) # New: Provider intelligence
+        # Hospital and Provider intelligence
+        recalculate_hospital_stats(record.hospital)
+        recalculate_provider_stats(record.provider)
         db.session.commit()
 
         flash("Claim submitted. Multi-layer risk analysis complete.", "success")
         return redirect(url_for("claims.result", claim_id=record.id))
 
-    return render_template("input.html", form_data={}, errors=[]) # Already correct
+    return render_template("input.html", form_data={}, errors=[])
 
 
-def _update_hospital_stats(record: ClaimRecord) -> None:
-    """Phase 5: keep Hospital aggregate stats in sync with new claim."""
-    if not record.hospital or record.hospital == "Unknown":
+def recalculate_hospital_stats(name: str) -> None:
+    """Keep Hospital aggregate stats in sync with claims database."""
+    if not name or name == "Unknown":
         return
-    h = Hospital.query.filter_by(name=record.hospital).first()
-    if h is None:
-        h = Hospital(name=record.hospital, region="Detected")
-        db.session.add(h)
-    h.total_claims = (h.total_claims or 0) + 1
-    if record.prediction == "Fraud":
-        h.fraud_claims = (h.fraud_claims or 0) + 1
-    # running average
-    n = h.total_claims
-    h.avg_risk_score = round(
-        ((h.avg_risk_score or 0) * (n - 1) + (record.risk_score or 0)) / n, 2
-    )
-    if record.prediction == "Fraud":
-        h.last_flagged_at = datetime.now(timezone.utc)
+    try:
+        h = Hospital.query.filter_by(name=name).first()
+        if h is None:
+            h = Hospital(name=name, region="Detected")
+            db.session.add(h)
+        
+        total = ClaimRecord.query.filter_by(hospital=name).count()
+        fraud_count = ClaimRecord.query.filter(
+            ClaimRecord.hospital == name,
+            or_(
+                ClaimRecord.status == "Fraud Confirmed",
+                and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+            )
+        ).count()
+        avg_risk = db.session.query(func.avg(ClaimRecord.risk_score)).filter(ClaimRecord.hospital == name).scalar() or 0.0
+        
+        h.total_claims = total
+        h.fraud_claims = fraud_count
+        h.avg_risk_score = round(float(avg_risk), 2)
+        
+        last_flagged = db.session.query(func.max(ClaimRecord.timestamp)).filter(
+            ClaimRecord.hospital == name,
+            or_(
+                ClaimRecord.status == "Fraud Confirmed",
+                and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+            )
+        ).scalar()
+        h.last_flagged_at = last_flagged
+    except Exception as e:
+        current_app.logger.error(f"Failed to recalculate stats for hospital {name}: {e}")
 
 
-def _update_provider_stats(record: ClaimRecord) -> None:
-    """New: Keep Provider aggregate stats in sync with new claim."""
-    if not record.provider or record.provider == "Unknown":
+def recalculate_provider_stats(name: str) -> None:
+    """Keep Provider aggregate stats in sync with claims database."""
+    if not name or name == "Unknown":
         return
-    p = Provider.query.filter_by(name=record.provider).first()
-    if p is None:
-        p = Provider(name=record.provider)
-        db.session.add(p)
-    p.total_claims = (p.total_claims or 0) + 1
-    if record.prediction == "Fraud":
-        p.fraud_claims = (p.fraud_claims or 0) + 1
-    # running average
-    n = p.total_claims
-    p.avg_risk_score = round(
-        ((p.avg_risk_score or 0) * (n - 1) + (record.risk_score or 0)) / n, 2
-    )
-    if record.prediction == "Fraud":
-        p.last_flagged_at = datetime.now(timezone.utc)
+    try:
+        p = Provider.query.filter_by(name=name).first()
+        if p is None:
+            p = Provider(name=name)
+            db.session.add(p)
+        
+        total = ClaimRecord.query.filter_by(provider=name).count()
+        fraud_count = ClaimRecord.query.filter(
+            ClaimRecord.provider == name,
+            or_(
+                ClaimRecord.status == "Fraud Confirmed",
+                and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+            )
+        ).count()
+        avg_risk = db.session.query(func.avg(ClaimRecord.risk_score)).filter(ClaimRecord.provider == name).scalar() or 0.0
+        
+        p.total_claims = total
+        p.fraud_claims = fraud_count
+        p.avg_risk_score = round(float(avg_risk), 2)
+        
+        last_flagged = db.session.query(func.max(ClaimRecord.timestamp)).filter(
+            ClaimRecord.provider == name,
+            or_(
+                ClaimRecord.status == "Fraud Confirmed",
+                and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+            )
+        ).scalar()
+        p.last_flagged_at = last_flagged
+    except Exception as e:
+        current_app.logger.error(f"Failed to recalculate stats for provider {name}: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +249,7 @@ def result(claim_id):
     try:
         breakdown = json.loads(claim.risk_breakdown or "{}")
     except:
-        breakdown = {} # Already correct
+        breakdown = {}
 
     similar = _find_similar_claims(claim, limit=5)
     return render_template("result.html", claim=claim, similar=similar, breakdown=breakdown)
@@ -225,6 +273,20 @@ def download_pdf(claim_id):
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
 
+    def draw_wrapped_line(canvas_obj, text, x, y, max_width=500):
+        """Simple line wrapper for ReportLab canvas."""
+        words = text.split()
+        line = ""
+        for word in words:
+            if canvas_obj.stringWidth(line + word) < max_width:
+                line += word + " "
+            else:
+                canvas_obj.drawString(x, y, line.strip())
+                y -= 12
+                line = word + " "
+        canvas_obj.drawString(x, y, line.strip())
+        return y - 12
+
     # Header
     p.setFillColor(colors.HexColor("#0f172a"))
     p.rect(0, height - 80, width, 80, fill=1, stroke=0)
@@ -232,42 +294,60 @@ def download_pdf(claim_id):
     p.setFont("Helvetica-Bold", 18)
     p.drawString(50, height - 50, "MedGuard AI - Fraud Investigation Report")
     p.setFont("Helvetica", 10)
-    p.drawRightString(width - 50, height - 50, f"Claim #{claim.id}")
+    p.drawRightString(width - 50, height - 50, f"Reference ID: #{claim.id:06d}")
 
     y = height - 120
+    
+    # Risk Summary Box
+    risk_color = colors.HexColor("#ef4444") if claim.risk_level in ["High", "Critical"] else colors.HexColor("#f59e0b") if claim.risk_level == "Medium" else colors.HexColor("#10b981")
+    p.setFillColor(risk_color)
+    p.rect(45, y - 10, width - 90, 30, fill=1, stroke=0)
+    p.setFillColor(colors.white)
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(60, y, f"RISK ASSESSMENT: {claim.risk_level.upper()}")
+    p.drawRightString(width - 60, y, f"SCORE: {claim.risk_score}/100")
+
+    y -= 60
     p.setFillColor(colors.black)
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(50, y, f"Risk Level: {claim.risk_level}")
-    p.drawString(50, y - 20, f"Risk Score: {claim.risk_score}/100")
-    p.drawString(50, y - 40, f"Prediction: {claim.prediction}")
-    p.drawString(50, y - 60, f"ML Probability: {claim.ml_probability}")
-    p.drawString(50, y - 80, f"Status: {claim.status}")
-    p.drawString(50, y - 100, f"Claim Amount: ${claim.claim_amount:,.2f}")
-    p.drawString(50, y - 120, f"Hospital: {claim.hospital}")
-    p.drawString(50, y - 140, f"Provider: {claim.provider}")
-    p.drawString(50, y - 160, f"Submitted: {claim.timestamp.strftime('%Y-%m-%d %H:%M')}")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(50, y, "CLAIM DETAILS")
+    p.line(50, y - 5, 200, y - 5)
+    
+    p.setFont("Helvetica", 10)
+    p.drawString(50, y - 25, f"Prediction Verdict:")
+    p.drawString(150, y - 25, f"{claim.prediction}")
+    p.drawString(50, y - 40, f"Current Status:")
+    p.drawString(150, y - 40, f"{claim.status}")
+    p.drawString(50, y - 55, f"Claim Amount:")
+    p.drawString(150, y - 55, f"${claim.claim_amount:,.2f}")
+    p.drawString(50, y - 70, f"Entity:")
+    p.drawString(150, y - 70, f"{claim.hospital} / {claim.provider}")
+    p.drawString(50, y - 85, f"Timestamp:")
+    p.drawString(150, y - 85, f"{claim.timestamp.strftime('%B %d, %Y %H:%M UTC')}")
 
     # Reasons
+    y -= 130
     p.setFont("Helvetica-Bold", 11)
-    p.drawString(50, y - 200, "Reasons flagged:")
+    p.drawString(50, y, "FLAGS & ANOMALIES DETECTED")
+    y -= 20
     p.setFont("Helvetica", 10)
-    text = p.beginText(50, y - 220)
     for line in (claim.reasons or "").split(","):
         clean_line = line.strip()
         if clean_line:
-            text.textLine(f"  - {clean_line}")
-    p.drawText(text)
+            y = draw_wrapped_line(p, f"  - {clean_line}", 50, y)
+            if y < 100: break # Page safety
 
     # Recommendations
+    y -= 20
     p.setFont("Helvetica-Bold", 11)
-    p.drawString(50, y - 320, "Recommendations:")
+    p.drawString(50, y, "ACTIONABLE RECOMMENDATIONS")
+    y -= 20
     p.setFont("Helvetica", 10)
-    text = p.beginText(50, y - 340)
     for line in (claim.recommendations or "").split("|"):
         clean_line = line.strip()
         if clean_line:
-            text.textLine(f"  - {clean_line}")
-    p.drawText(text)
+            y = draw_wrapped_line(p, f"  - {clean_line}", 50, y)
+            if y < 100: break # Page safety
 
     # Footer
     p.setFont("Helvetica-Oblique", 8)
@@ -288,11 +368,9 @@ def download_pdf(claim_id):
 # Investigation workflow
 # ---------------------------------------------------------------------------
 @claims_bp.route("/claim/<int:claim_id>/status", methods=["POST"])
-@login_required
+@admin_required
 def update_status(claim_id):
     claim = ClaimRecord.query.get_or_404(claim_id)
-    if claim.username != session["username"] and not session.get("is_admin"):
-        abort(403)
     new_status = request.form.get("status", "").strip()
     note = request.form.get("note", "").strip()
     if new_status not in VALID_STATUSES:
@@ -301,10 +379,10 @@ def update_status(claim_id):
 
     old = claim.status
     claim.status = new_status
-    claim.status_updated_at = datetime.now(timezone.utc) # Already correct
+    claim.status_updated_at = datetime.now(timezone.utc)
     if note:
         claim.investigation_notes = (claim.investigation_notes or "") + \
-            f"\n[{datetime.now(timezone.utc):%Y-%m-%d %H:%M}] {session['username']}: {note}" # Already correct
+            f"\n[{datetime.now(timezone.utc):%Y-%m-%d %H:%M}] {session['username']}: {note}"
     db.session.add(Investigation(
         claim_id=claim.id, investigator=session["username"],
         action=f"{old} -> {new_status}", note=note or "Status updated",
@@ -313,6 +391,9 @@ def update_status(claim_id):
         actor=session["username"], action="status_update",
         target=f"claim:{claim.id}", detail=f"{old} -> {new_status}",
     ))
+    # Recalculate hospital/provider stats on claim status change
+    recalculate_hospital_stats(claim.hospital)
+    recalculate_provider_stats(claim.provider)
     db.session.commit()
     flash(f"Status updated to {new_status}.", "success")
     return redirect(url_for("claims.result", claim_id=claim_id))
@@ -337,8 +418,12 @@ def hospitals():
     for name in names_in_claims:
         if name not in seen:
             total = ClaimRecord.query.filter_by(hospital=name).count()
-            fraud = ClaimRecord.query.filter_by(
-                hospital=name, prediction="Fraud"
+            fraud = ClaimRecord.query.filter(
+                ClaimRecord.hospital == name,
+                or_(
+                    ClaimRecord.status == "Fraud Confirmed",
+                    and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+                )
             ).count()
             avg = db.session.query(
                 func.avg(ClaimRecord.risk_score)
@@ -361,7 +446,7 @@ def _claim_to_vector(c: ClaimRecord) -> np.ndarray:
         float(c.depression or 0), float(c.diabetes or 0), float(c.ischemic_heart or 0),
         float(c.osteoporosis or 0), float(c.arthritis or 0), float(c.stroke or 0),
         float(c.ip_deductible or 0), float(c.op_deductible or 0),
-        float(c.claim_amount or 0), # Already correct
+        float(c.claim_amount or 0),
     ], dtype=float)
 
 
@@ -414,7 +499,12 @@ def api_similar(claim_id):
 def analytics():
     total = db.session.query(func.count(ClaimRecord.id)).scalar() or 0
     fraud = db.session.query(func.count(ClaimRecord.id))\
-        .filter(ClaimRecord.prediction == "Fraud").scalar() or 0
+        .filter(
+            or_(
+                ClaimRecord.status == "Fraud Confirmed",
+                and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+            )
+        ).scalar() or 0
     under_review = db.session.query(func.count(ClaimRecord.id))\
         .filter(ClaimRecord.status.in_(["Under Review", "Investigating"])).scalar() or 0
     total_amount = db.session.query(
@@ -422,7 +512,12 @@ def analytics():
     ).scalar() or 0.0
     fraud_amount = db.session.query(
         func.coalesce(func.sum(ClaimRecord.claim_amount), 0.0)
-    ).filter(ClaimRecord.prediction == "Fraud").scalar() or 0.0
+    ).filter(
+        or_(
+            ClaimRecord.status == "Fraud Confirmed",
+            and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+        )
+    ).scalar() or 0.0
     avg_score = db.session.query(
         func.coalesce(func.avg(ClaimRecord.risk_score), 0.0)
     ).scalar() or 0.0
@@ -435,23 +530,26 @@ def analytics():
     rd = {k or "Low": int(v) for k, v in rd.items()}
 
     # monthly trend
-    cutoff = datetime.now(timezone.utc) - timedelta(days=180) # Already correct
-    rows = (
-        db.session.query(
-            func.strftime("%Y-%m", ClaimRecord.timestamp).label("m"),
-            func.count(ClaimRecord.id).label("n"),
-            func.sum(
-                func.iif(ClaimRecord.prediction == "Fraud", 1, 0)
-                if hasattr(func, "iif") else
-                func.case((ClaimRecord.prediction == "Fraud", 1), else_=0)
-            ).label("f"),
-        )
+    cutoff = datetime.now(timezone.utc) - timedelta(days=180)
+    raw_claims = (
+        db.session.query(ClaimRecord.timestamp, ClaimRecord.prediction, ClaimRecord.status)
         .filter(ClaimRecord.timestamp >= cutoff)
-        .group_by("m").order_by("m").all()
+        .order_by(ClaimRecord.timestamp.asc())
+        .all()
     )
-    months = [r.m for r in rows]
-    monthly_total = [int(r.n) for r in rows]
-    monthly_fraud = [int(r.f or 0) for r in rows]
+
+    # Group by month in Python for database portability
+    monthly_data = defaultdict(lambda: {"total": 0, "fraud": 0})
+    for ts, prediction, status in raw_claims:
+        if ts:
+            m_key = ts.strftime("%Y-%m")
+            monthly_data[m_key]["total"] += 1
+            if status == "Fraud Confirmed" or (prediction == "Fraud" and status != "Cleared"):
+                monthly_data[m_key]["fraud"] += 1
+
+    months = sorted(list(monthly_data.keys()))
+    monthly_total = [monthly_data[m]["total"] for m in months]
+    monthly_fraud = [monthly_data[m]["fraud"] for m in months]
 
     # hospital rankings
     hospital_rows = (

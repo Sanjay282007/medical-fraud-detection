@@ -13,23 +13,21 @@ import logging
 import os
 import random
 import warnings
-from datetime import datetime, timedelta, timezone # Already imported
+from datetime import datetime, timedelta, timezone
 
-from flask import (
-    Flask, jsonify, redirect, render_template, request, url_for
-)
+from flask import Flask, render_template
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from config import Config
 from models import (
-    AuditEvent, ClaimRecord, Hospital, Investigation, User, db
+    AuditEvent, ClaimRecord, Hospital, Investigation, Provider, User, db
 )
 from routes.auth import auth_bp
 from routes.claims import claims_bp
 from routes.main import main_bp
-from utils.model_loader import get_model
+from utils.model_loader import get_model, predict_proba_safe
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +110,7 @@ def _register_context(app: Flask) -> None:
         return {
             "csrf_token": generate_csrf,
             "now": lambda: datetime.now(timezone.utc),
-            "app_name": "MedGuard AI",
+            "app_name": "MedGuard Intelligence",
         }
 
 
@@ -134,9 +132,9 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(500)
     def _server(e):
-        app.logger.exception("Unhandled server error")
+        app.logger.exception("Internal Server Error")
         return render_template("error.html", code=500,
-                               message="Something went wrong on our end. The team has been notified."), 500
+                               message="The Intelligence Engine encountered an unexpected operational failure."), 500
 
     @app.errorhandler(Exception)
     def _generic(e):
@@ -144,9 +142,9 @@ def _register_error_handlers(app: Flask) -> None:
         from werkzeug.exceptions import HTTPException
         if isinstance(e, HTTPException):
             return e
-        app.logger.exception("Unhandled exception")
+        app.logger.exception("Unhandled operational exception")
         return render_template("error.html", code=500,
-                               message="An unexpected error occurred."), 500
+                               message="A critical system anomaly has occurred. Please contact system administration."), 500
 
 
 # ---------------------------------------------------------------------------
@@ -159,13 +157,12 @@ def _maybe_seed(app: Flask) -> None:
         user_count = User.query.count()
         claim_count = ClaimRecord.query.count()
     except Exception as exc:
-        # Handle schema mismatch or missing tables by recreating tables
-        if "no such column" in str(exc).lower() or "no such table" in str(exc).lower():
-            app.logger.warning("Database schema mismatch or missing tables detected. Re-creating tables...")
-            db.drop_all()
+        # Create missing tables safely (db.create_all() will not overwrite existing tables)
+        if "no such table" in str(exc).lower():
+            app.logger.warning("Database tables missing. Creating tables...")
             db.create_all()
             user_count, claim_count = 0, 0
-            force = True  # Repopulate after re-creation
+            force = True  # Populate after creation
         else:
             raise exc
 
@@ -181,20 +178,26 @@ def _seed_demo_claims(app: Flask) -> None:
         app.logger.warning("Seed skipped: model unavailable")
         return
 
+    from werkzeug.security import generate_password_hash
     random.seed(42)
     np_seed_user = "demo_user"
+    np_seed_admin = "admin"
+
+    # Seed regular demo user
     if not User.query.filter_by(username=np_seed_user).first():
-        from werkzeug.security import generate_password_hash
         db.session.add(User(
             username=np_seed_user,
             password=generate_password_hash("Demo12345"),
             is_admin=False,
         ))
-        db.session.commit()
+    # Seed admin user (Fix: Missing admin user during demo seeding)
+    if not User.query.filter_by(username=np_seed_admin).first():
+        db.session.add(User(username=np_seed_admin, password=generate_password_hash("Admin12345"), is_admin=True))
+    db.session.commit()
 
-    import numpy as np
     import pandas as pd
     from utils.risk_engine import calculate_multi_layer_risk
+    from routes.claims import recalculate_hospital_stats, recalculate_provider_stats
 
     hospitals = [
         ("City General Hospital", "Dr. Smith"),
@@ -207,11 +210,15 @@ def _seed_demo_claims(app: Flask) -> None:
 
     # load 20 rows from the training CSV to get realistic chronic-condition profiles
     try:
-        sample = pd.read_csv("medi_fraud3.csv", nrows=20)
+        sample = pd.read_csv(Config.TRAINING_DATA_PATH, nrows=20)
     except Exception:
         sample = None
 
+    unique_hospitals = set()
+    unique_providers = set()
+
     for i in range(15):
+        # ... (rest of the loop content is similar but I'll make it cleaner)
         if sample is not None and i < len(sample):
             row = sample.iloc[i]
             form_data = {
@@ -257,10 +264,13 @@ def _seed_demo_claims(app: Flask) -> None:
              "ChronicCond_rheumatoidarthritis", "ChronicCond_stroke",
              "IPAnnualDeductibleAmt", "OPAnnualDeductibleAmt"]
         ]
-        ml_prob = float(model.predict_proba(df)[0][1]) if hasattr(model, "predict_proba") else 0.5
+        ml_prob = predict_proba_safe(model, df)
+        ml_prob = float(ml_prob) if ml_prob is not None else 0.0
         risk = calculate_multi_layer_risk(form_data, ml_prob)
 
         h, p = random.choice(hospitals)
+        unique_hospitals.add(h)
+        unique_providers.add(p)
         amount = round(random.uniform(500, 25000), 2)
         # bias amount with risk: higher risk => larger amount
         amount = round(amount * (0.7 + (risk.score / 100.0)), 2)
@@ -291,8 +301,8 @@ def _seed_demo_claims(app: Flask) -> None:
             risk_score=risk.score, risk_level=risk.level,
             ml_probability=risk.ml_probability,
             prediction=risk.prediction,
-            confidence_score=risk.confidence, # Added
-            risk_breakdown=json.dumps(risk.layer_breakdown), # Added
+            confidence_score=risk.confidence,
+            risk_breakdown=json.dumps(risk.layer_breakdown),
             reasons=risk.reason_text(),
             recommendations=risk.recommendation_text(),
             status=status, status_updated_at=ts,
@@ -305,25 +315,21 @@ def _seed_demo_claims(app: Flask) -> None:
             claim_id=rec.id, investigator="auto-triage",
             action="Created", note="Seeded for demo", created_at=ts,
         ))
-        # Hospital stats
-        hp = Hospital.query.filter_by(name=h).first()
-        if hp is None:
-            hp = Hospital(name=h); db.session.add(hp)
-        hp.total_claims = (hp.total_claims or 0) + 1
-        if rec.prediction == "Fraud":
-            hp.fraud_claims = (hp.fraud_claims or 0) + 1
-        n = hp.total_claims
-        hp.avg_risk_score = round(
-            ((hp.avg_risk_score or 0) * (n - 1) + rec.risk_score) / n, 2
-        )
-        if rec.prediction == "Fraud":
-            hp.last_flagged_at = ts
 
+    db.session.commit() # Commit claims first so recalculation sees them
+
+    # Recalculate stats for all seeded entities
+    for h_name in unique_hospitals:
+        recalculate_hospital_stats(h_name)
+    for p_name in unique_providers:
+        recalculate_provider_stats(p_name)
+    
     db.session.add(AuditEvent(
         actor="system", action="seed", target="claims",
         detail="Demo data populated",
     ))
     db.session.commit()
+    app.logger.info("Seeded 15 demo claims and updated aggregate stats.")
     app.logger.info("Seeded 15 demo claims for demo_user.")
 
 
@@ -334,4 +340,6 @@ app = create_app()
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
+    # Production safety: use environment variable for debug mode, default to False
+    debug_mode = os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=debug_mode)

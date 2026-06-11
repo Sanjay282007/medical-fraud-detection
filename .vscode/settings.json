@@ -1,3 +1,4 @@
 {
-    "debugpy.showPythonInlineValues": false
+    "debugpy.showPythonInlineValues": false,
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

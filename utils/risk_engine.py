@@ -32,14 +32,22 @@ class RiskResult:
     layer_breakdown: Dict[str, float] = field(default_factory=dict)
 
     def reason_text(self) -> str:
-        return ", ".join(self.reasons) if self.reasons else "Pattern matches norm"
+        return ", ".join(self.reasons) if self.reasons else "Standard clinical profile"
 
     def recommendation_text(self) -> str:
         return (
             " | ".join(self.recommendations)
             if self.recommendations
-            else "Standard processing"
+            else "Standard verification protocol"
         )
+
+    def get_confidence_wording(self) -> str:
+        """Returns human-readable confidence levels."""
+        if self.confidence >= 0.85:
+            return "High Certainty"
+        if self.confidence >= 0.70:
+            return "Moderate Certainty"
+        return "Low Certainty (Manual Review Recommended)"
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +70,13 @@ CHRONIC_KEYS = (
 
 
 def _chronic_count(data: Dict[str, float]) -> int:
-    return sum(int(round(float(data.get(k, 0)))) for k in CHRONIC_KEYS)
+    count = 0
+    for k in CHRONIC_KEYS:
+        try:
+            count += int(round(float(data.get(k, 0) or 0)))
+        except (ValueError, TypeError):
+            continue
+    return count
 
 
 def _score_to_level(score: float) -> str:
@@ -94,7 +108,7 @@ def _recommend_for(risk_level: str, ml_prob: float, ip_amt: float) -> List[str]:
         recs.append("Place payment on hold pending review")
 
     if ml_prob > 0.8:
-        recs.append("ML model high-confidence fraud - prioritize")
+        recs.append("ML model indicates high fraud probability - prioritize audit")
 
     if ip_amt > 10000:
         recs.append("High inpatient deductible - verify necessity")
@@ -163,14 +177,18 @@ def calculate_multi_layer_risk(
         "ML Signal": round(ml_score, 2)
     }
     breakdown["feature_importance"] = feature_importance
-
-    return RiskResult(
+    
+    res = RiskResult(
         score=final_score,
         level=level,
         prediction=prediction,
         reasons=reasons,
         recommendations=_recommend_for(level, ml_prob_f, ip_amt),
         ml_probability=round(ml_prob_f, 4),
-        confidence=round(float(confidence), 2),
+        confidence=round(float(confidence), 4),
         layer_breakdown=breakdown
     )
+    # Inject wording into breakdown for UI consumption
+    breakdown["confidence_desc"] = res.get_confidence_wording()
+
+    return res

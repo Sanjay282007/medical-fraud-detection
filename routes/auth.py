@@ -13,6 +13,7 @@ import re
 import time
 from collections import defaultdict
 from functools import wraps
+from datetime import datetime, timezone, timedelta
 
 from flask import (
     Blueprint, flash, redirect, render_template, request,
@@ -24,10 +25,7 @@ from models import User, db, AuditEvent
 
 auth_bp = Blueprint("auth", __name__)
 
-# ---- in-memory rate limiter (good enough for the hackathon) ----
-_attempts: dict[str, list[float]] = defaultdict(list)
-RATE_LIMIT_WINDOW = 60.0
-RATE_LIMIT_MAX = 5
+# Rate limit variables removed (now database-backed)
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +36,7 @@ def login_required(view):
     def wrapped(*args, **kwargs):
         if "username" not in session:
             flash("Please log in to continue.", "warning")
-            return redirect(url_for("auth.login"))
+            return redirect(url_for("auth.login", next=request.full_path))
         return view(*args, **kwargs)
     return wrapped
 
@@ -65,15 +63,29 @@ def _is_strong(pw: str) -> bool:
     return bool(_PASSWORD_RE.match(pw))
 
 
-def _record_attempt(username: str) -> bool:
-    """Return True if the request is allowed, False if rate-limited."""
-    now = time.time()
-    bucket = _attempts[username]
-    _attempts[username] = [t for t in bucket if now - t < RATE_LIMIT_WINDOW]
-    if len(_attempts[username]) >= RATE_LIMIT_MAX:
-        return False
-    _attempts[username].append(now)
-    return True
+DUMMY_HASH = "scrypt:32768:8:1$dummy_salt$781ac94f61f77d337a7cdbc7953288f3bfcd23d8c8309df5370d0cf6e3556cc6"
+
+
+def _is_rate_limited(username: str) -> bool:
+    """Return True if rate-limited (too many failed attempts)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+    failed_attempts = AuditEvent.query.filter(
+        AuditEvent.action == "login_fail",
+        AuditEvent.actor == username,
+        AuditEvent.created_at >= cutoff
+    ).count()
+    return failed_attempts >= 5
+
+
+def _is_reg_rate_limited(ip: str) -> bool:
+    """Return True if rate-limited (too many registration requests)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+    reg_count = AuditEvent.query.filter(
+        AuditEvent.action == "register_attempt",
+        AuditEvent.detail == ip,
+        AuditEvent.created_at >= cutoff
+    ).count()
+    return reg_count >= 3
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +93,20 @@ def _record_attempt(username: str) -> bool:
 # ---------------------------------------------------------------------------
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
+    if "username" in session:
+        return redirect(url_for("main.dashboard"))
+
     if request.method == "POST":
+        ip = request.remote_addr or "unknown"
+        if _is_reg_rate_limited(ip):
+            flash("Too many registration requests. Please wait a minute.", "danger")
+            return render_template("register.html")
+
+        db.session.add(AuditEvent(
+            actor="system", action="register_attempt", target=ip, detail=ip
+        ))
+        db.session.commit()
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
@@ -113,7 +138,7 @@ def register():
         db.session.add(user)
         db.session.commit()
         db.session.add(AuditEvent(
-            actor=username, action="register", target=username
+            actor=username, action="register", target=username, detail=ip
         ))
         db.session.commit()
         flash("Registration successful. Please log in.", "success")
@@ -124,16 +149,25 @@ def register():
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
+    if "username" in session:
+        return redirect(url_for("main.dashboard"))
+
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        if not _record_attempt(username):
+        if _is_rate_limited(username):
             flash("Too many attempts. Please wait a minute.", "danger")
             return render_template("login.html")
 
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
+        if user:
+            is_valid = check_password_hash(user.password, password)
+        else:
+            check_password_hash(DUMMY_HASH, password)
+            is_valid = False
+
+        if user and is_valid:
             session.permanent = True
             session["username"] = user.username
             session["is_admin"] = bool(user.is_admin)
@@ -142,8 +176,16 @@ def login():
             ))
             db.session.commit()
             flash(f"Welcome back, {user.username}!", "success")
+            next_url = request.args.get("next")
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
             return redirect(url_for("main.dashboard"))
 
+        # Log failed login attempt
+        db.session.add(AuditEvent(
+            actor=username, action="login_fail", target="login_attempt", detail=request.remote_addr
+        ))
+        db.session.commit()
         flash("Invalid username or password.", "danger")
     return render_template("login.html")
 

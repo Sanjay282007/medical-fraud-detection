@@ -74,7 +74,7 @@ class ClaimRecord(db.Model):
     risk_score = db.Column(db.Float, default=0.0)
     risk_level = db.Column(db.String(20), default="Low")
     ml_probability = db.Column(db.Float, default=0.0)
-    prediction = db.Column(db.String(20), default="No Fraud")
+    prediction = db.Column(db.String(20), default="No Fraud", index=True)
     reasons = db.Column(db.Text, default="")
     recommendations = db.Column(db.Text, default="")
     risk_breakdown = db.Column(db.Text, default="{}") # JSON storage for XAI

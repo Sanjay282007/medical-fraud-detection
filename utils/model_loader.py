@@ -116,15 +116,36 @@ def compute_dataset_metrics(force: bool = False) -> Optional[dict]:
             accuracy = (tp + tn) / max(len(y), 1)
             precision = tp / max(tp + fp, 1)
             recall = tp / max(tp + fn, 1)
-            f1 = (
-                2 * precision * recall / max(precision + recall, 1e-9)
-            )
+            f1 = 2 * precision * recall / max(precision + recall, 1e-9)
+
+            # Class 0: No Fraud (Legit)
+            legit_precision = tn / max(tn + fn, 1)
+            legit_recall = tn / max(tn + fp, 1)
+            legit_f1 = 2 * legit_precision * legit_recall / max(legit_precision + legit_recall, 1e-9)
+
+            # Class 1: Fraud
+            fraud_precision = tp / max(tp + fp, 1)
+            fraud_recall = tp / max(tp + fn, 1)
+            fraud_f1 = 2 * fraud_precision * fraud_recall / max(fraud_precision + fraud_recall, 1e-9)
+
             metrics.update({
                 "accuracy": round(float(accuracy), 4),
                 "precision": round(float(precision), 4),
                 "recall": round(float(recall), 4),
                 "f1": round(float(f1), 4),
                 "confusion_matrix": [[tn, fp], [fn, tp]],
+                "legit_precision": round(float(legit_precision), 4),
+                "legit_recall": round(float(legit_recall), 4),
+                "legit_f1": round(float(legit_f1), 4),
+                "fraud_precision": round(float(fraud_precision), 4),
+                "fraud_recall": round(float(fraud_recall), 4),
+                "fraud_f1": round(float(fraud_f1), 4),
+                "macro_precision": round(float((legit_precision + fraud_precision) / 2), 4),
+                "macro_recall": round(float((legit_recall + fraud_recall) / 2), 4),
+                "macro_f1": round(float((legit_f1 + fraud_f1) / 2), 4),
+                "weighted_precision": round(float((legit_precision * metrics["legit_records"] + fraud_precision * metrics["fraud_records"]) / max(metrics["total_records"], 1)), 4),
+                "weighted_recall": round(float((legit_recall * metrics["legit_records"] + fraud_recall * metrics["fraud_records"]) / max(metrics["total_records"], 1)), 4),
+                "weighted_f1": round(float((legit_f1 * metrics["legit_records"] + fraud_f1 * metrics["fraud_records"]) / max(metrics["total_records"], 1)), 4),
             })
         except Exception:
             pass

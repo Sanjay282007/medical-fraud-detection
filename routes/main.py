@@ -8,10 +8,10 @@ constant-time with the number of claims.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone # Already imported
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 
 import plotly
 import plotly.express as px
@@ -41,7 +41,12 @@ def dashboard():
     # SQL aggregates - O(1) round trip
     total = db.session.query(func.count(ClaimRecord.id)).scalar() or 0
     fraud = db.session.query(func.count(ClaimRecord.id))\
-        .filter(ClaimRecord.prediction == "Fraud").scalar() or 0
+        .filter(
+            or_(
+                ClaimRecord.status == "Fraud Confirmed",
+                and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+            )
+        ).scalar() or 0
     under_review = db.session.query(func.count(ClaimRecord.id))\
         .filter(ClaimRecord.status.in_(["Under Review", "Investigating"])).scalar() or 0
     total_amount = db.session.query(
@@ -49,7 +54,12 @@ def dashboard():
     ).scalar() or 0.0
     fraud_amount = db.session.query(
         func.coalesce(func.sum(ClaimRecord.claim_amount), 0.0)
-    ).filter(ClaimRecord.prediction == "Fraud").scalar() or 0.0
+    ).filter(
+        or_(
+            ClaimRecord.status == "Fraud Confirmed",
+            and_(ClaimRecord.prediction == "Fraud", ClaimRecord.status != "Cleared")
+        )
+    ).scalar() or 0.0
 
     # Recent claims for the current user
     user_claims = (
@@ -78,7 +88,7 @@ def dashboard():
         graph_json = "null"
 
     # 30-day trend for the small line chart on dashboard
-    cutoff = datetime.now(timezone.utc) - timedelta(days=30) # Already correct
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
     rows = (
         db.session.query(
             func.date(ClaimRecord.timestamp).label("d"),
@@ -92,7 +102,7 @@ def dashboard():
     trend_labels = [str(r.d) for r in rows]
     trend_values = [int(r.n) for r in rows]
     if not trend_labels:
-        trend_labels = [datetime.now(timezone.utc).strftime("%Y-%m-%d")] # Already correct
+        trend_labels = [datetime.now(timezone.utc).strftime("%Y-%m-%d")]
         trend_values = [0]
 
     return render_template(
@@ -121,5 +131,9 @@ def chart():
         "total_records": 0, "fraud_records": 0, "legit_records": 0,
         "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0,
         "confusion_matrix": [[0, 0], [0, 0]],
+        "legit_precision": 0.0, "legit_recall": 0.0, "legit_f1": 0.0,
+        "fraud_precision": 0.0, "fraud_recall": 0.0, "fraud_f1": 0.0,
+        "macro_precision": 0.0, "macro_recall": 0.0, "macro_f1": 0.0,
+        "weighted_precision": 0.0, "weighted_recall": 0.0, "weighted_f1": 0.0,
     }
     return render_template("chart.html", metrics=metrics)

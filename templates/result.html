@@ -9,32 +9,32 @@
                 <div class="p-4 p-md-5 text-white {% if claim.prediction == 'Fraud' %}bg-danger{% else %}bg-success{% endif %}">
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
                         <div>
-                            <h1 class="display-5 fw-bold mb-1">{{ claim.prediction }}</h1>
-                            <p class="mb-0 opacity-90">AI Intelligence Report &middot; Claim #{{ claim.id }}</p>
+                            <h1 class="display-5 fw-bold mb-1">{{ claim.prediction|default('No Fraud', true) }}</h1>
+                            <p class="mb-0 opacity-90">Risk Intelligence Report &middot; Case ID #{{ claim.id }}</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="row g-0">
-                    <div class="col-md-4 border-end bg-light p-4 text-center">
+                    <div class="col-md-4 border-end bg-app p-4 text-center">
                         <div id="riskGauge" style="height: 250px;"></div>
-                        <h4 class="fw-bold">{{ claim.risk_score }} / 100</h4>
-                        <p class="text-muted small">Multi-Layer Risk Score</p>
+                        <h4 class="fw-bold text-dark">{{ claim.risk_score|default(0, true) }} / 100</h4>
+                        <p class="text-secondary small">Comprehensive Risk Score</p>
                     </div>
                     <div class="col-md-8 p-4">
-                        <h5 class="fw-bold mb-3">Executive Summary</h5>
-                        <p class="text-secondary">This claim has been analyzed using the <strong>MedGuard XAI Pipeline</strong>. 
-                        The AI predicts <strong>{{ claim.prediction }}</strong> with a confidence of <strong>{{ (claim.confidence_score * 100)|round(1) }}%</strong>.
-                        The primary drivers for this verdict include: {{ claim.reasons }}.</p>
+                        <h5 class="fw-bold mb-3 text-dark">Executive Intelligence Summary</h5>
+                        <p class="text-secondary">This claim has been processed through the <strong>MedGuard AI Scoring Engine</strong>. 
+                        The system has assigned a verdict of <strong>{{ claim.prediction|default('No Fraud', true) }}</strong> with a diagnostic confidence of <strong>{{ ((claim.confidence_score|default(0)) * 100)|round(1) }}%</strong>.
+                        Key risk drivers identified: {{ claim.reasons|default('No anomalous flags detected.', true) }}.</p>
                         
                         <div class="row mt-4">
-                             <div class="col-6">
-                                 <div class="small text-muted">Provider Integrity</div>
-                                 <div class="fw-bold text-primary">High Confidence Signal</div>
-                             </div>
+                            <div class="col-6">
+                                <div class="small text-secondary">Signal Reliability</div>
+                                <div class="fw-bold text-brand">High Integrity Model</div>
+                            </div>
                             <div class="col-6 text-end">
-                                <div class="small text-muted">Submission Date</div>
-                                <div class="fw-bold">{{ claim.timestamp.strftime('%Y-%m-%d') }}</div>
+                                <div class="small text-secondary">Audit Timestamp</div>
+                                <div class="fw-bold text-dark">{{ claim.timestamp.strftime('%Y-%m-%d') if claim.timestamp else 'N/A' }}</div>
                             </div>
                         </div>
                     </div>
@@ -44,48 +44,52 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <p class="text-muted small mb-1">Risk Level</p>
-                            <span class="risk-pill risk-{{ claim.risk_level|lower }}">{{ claim.risk_level }}</span>
+                            <span class="risk-pill risk-{{ claim.risk_level|default('Low', true) }}">{{ claim.risk_level|default('Low', true) }}</span>
                         </div>
                         <div class="col-md-4">
                             <p class="text-muted small mb-1">ML Probability</p>
-                            <h5 class="fw-bold mb-0">{{ '%.1f'|format((claim.ml_probability or 0) * 100) }}%</h5>
+                            <h5 class="fw-bold mb-0">{{ '%.1f'|format((claim.ml_probability|default(0)) * 100) }}%</h5>
                         </div>
                         <div class="col-md-4">
                             <p class="text-muted small mb-1">Claim Amount</p>
-                            <h5 class="fw-bold mb-0">${{ '{:,.2f}'.format(claim.claim_amount or 0) }}</h5>
+                            <h5 class="fw-bold mb-0">${{ '{:,.2f}'.format(claim.claim_amount|default(0)) }}</h5>
                         </div>
                     </div>
 
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <p class="text-muted small mb-1">Hospital</p>
-                            <p class="fw-semibold mb-0">{{ claim.hospital }}</p>
+                            <p class="fw-semibold mb-0">{{ claim.hospital|default('Unknown', true) }}</p>
                         </div>
                         <div class="col-md-4">
                             <p class="text-muted small mb-1">Provider</p>
-                            <p class="fw-semibold mb-0">{{ claim.provider }}</p>
+                            <p class="fw-semibold mb-0">{{ claim.provider|default('Unknown', true) }}</p>
                         </div>
                         <div class="col-md-4">
                             <p class="text-muted small mb-1">Diagnosis Code</p>
-                            <p class="fw-semibold mb-0">{{ claim.diagnosis_code or '-' }}</p>
+                            <p class="fw-semibold mb-0">{{ claim.diagnosis_code|default('-', true) }}</p>
                         </div>
                     </div>
 
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="card-mg p-3 h-100" style="background: rgba(14, 165, 233, 0.05);">
-                                <h6 class="fw-bold text-brand mb-2"><i class="fas fa-brain me-2"></i>AI Reasoning (XAI)</h6>
-                                <p class="mb-0 small">
-                                    {{ claim.reasons or 'No explanation available.' }}
+                                <h6 class="fw-bold text-brand mb-2"><i class="fas fa-brain me-2"></i>Risk Determinants (XAI)</h6>
+                                <p class="mb-2 small text-secondary">
+                                    {{ claim.reasons|default('No specific flags detected.', true) }}
                                 </p>
+                                <div id="contributionChart" style="height: 200px;"></div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="card-mg p-3 h-100" style="background: rgba(16, 185, 129, 0.05);">
-                                <h6 class="fw-bold text-success mb-2"><i class="fas fa-lightbulb me-2"></i>Recommended Actions</h6>
-                                <ul class="mb-0 small ps-3">
-                                    {% for r in (claim.recommendations or '').split('|') %}
+                                <h6 class="fw-bold text-success mb-2"><i class="fas fa-lightbulb me-2"></i>Investigation Action Plan</h6>
+                                <ul class="mb-0 small ps-3 text-secondary">
+                                    {% set rec_list = (claim.recommendations|default('', true)).split('|') %}
+                                    {% for r in rec_list %}
+                                    {% if r.strip() %}
                                     <li>{{ r.strip() }}</li>
+                                    {% endif %}
                                     {% endfor %}
                                 </ul>
                             </div>
@@ -95,7 +99,7 @@
             </div>
 
             <div class="card-mg p-4 mb-3">
-                <h5 class="fw-bold mb-3"><i class="fas fa-tasks text-brand me-2"></i>Investigation Workflow</h5>
+                <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-tasks text-brand me-2"></i>Investigation Lifecycle</h5>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                     {% set statuses = [
                         'Submitted',
@@ -115,7 +119,7 @@
     {% for s in statuses %}
         {% if s == claim.status %}
 
-            <span class="risk-pill risk-{{ claim.risk_level|lower }}">
+            <span class="risk-pill risk-{{ claim.risk_level|default('Low', true) }}">
                 {{ s }}
             </span>
 
@@ -127,52 +131,58 @@
 
         {% else %}
 
-            <span class="badge bg-light text-muted px-3 py-2 rounded-pill">
+            <span class="badge bg-app text-secondary px-3 py-2 rounded-pill">
                 {{ s }}
             </span>
 
         {% endif %}
     {% endfor %}
 </div>
+                {% if session.get('is_admin') %}
                 <form method="POST" action="{{ url_for('claims.update_status', claim_id=claim.id) }}" class="row g-2 align-items-end">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="col-md-4">
-                        <label class="form-label small">Update status</label>
+                        <label class="form-label small">Advanced Workflow State</label>
                         <select name="status" class="form-select">
                             {% for s in statuses %}<option value="{{ s }}" {% if s == claim.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label small">Note (optional)</label>
+                        <label class="form-label small">Clinical / Financial Notes</label>
                         <input type="text" name="note" class="form-control" placeholder="e.g. verified documents match records">
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-brand w-100"><i class="fas fa-save me-1"></i>Save</button>
+                        <button type="submit" class="btn btn-brand w-100"><i class="fas fa-save me-1"></i>Commit</button>
                     </div>
                 </form>
+                {% else %}
+                <div class="text-secondary small mt-2">
+                    <i class="fas fa-lock me-1"></i> Auditor credentials required to advance investigation state.
+                </div>
+                {% endif %}
                 {% if claim.investigation_notes %}
-                <div class="mt-3 p-3 bg-light rounded-3 small">
-                    <strong>Investigation log:</strong>
-                    <pre class="mb-0 mt-1 small" style="white-space: pre-wrap;">{{ claim.investigation_notes }}</pre>
+                <div class="mt-3 p-3 bg-app rounded-3 small">
+                    <strong>Auditor Log:</strong>
+                    <pre class="mb-0 mt-1 small" style="white-space: pre-wrap; color: var(--text-secondary);">{{ claim.investigation_notes }}</pre>
                 </div>
                 {% endif %}
             </div>
 
             {% if similar %}
             <div class="card-mg p-4 mb-3">
-                <h5 class="fw-bold mb-3"><i class="fas fa-clone text-brand me-2"></i>Similar Claims (Historical)</h5>
+                <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-clone text-brand me-2"></i>Pattern Match Analysis (Historical)</h5>
                 <div class="table-responsive">
                     <table class="table table-mg align-middle">
-                        <thead><tr><th>ID</th><th>Hospital</th><th>Risk</th><th>Level</th><th>Prediction</th><th>Similarity</th></tr></thead>
+                        <thead><tr><th>Case ID</th><th>Facility</th><th>Score</th><th>Level</th><th>Verdict</th><th>Similarity</th></tr></thead>
                         <tbody>
-                        {% for c in similar %} # Fixed: Iterate over ClaimRecord objects
+                        {% for sim, c in similar %}
                             <tr>
                                 <td><a href="{{ url_for('claims.result', claim_id=c.id) }}" class="text-decoration-none">#{{ c.id }}</a></td>
                                 <td>{{ c.hospital }}</td>
-                                <td>{{ '%.1f'|format(c.risk_score or 0) }}</td>
-                                <td><span class="risk-pill risk-{{ (c.risk_level or 'low')|lower }}">{{ c.risk_level }}</span></td>
-                                <td>{% if c.prediction == 'Fraud' %}<span class="text-danger fw-semibold">Fraud</span>{% else %}<span class="text-success">OK</span>{% endif %}</td> # Already correct
-                                <td><span class="badge bg-soft-info text-brand">{{ '%.0f'|format(c.similarity_score * 100) }}%</span></td> # Fixed: Access similarity_score from object
+                                <td>{{ '%.1f'|format(c.risk_score|default(0)) }}</td>
+                                <td><span class="risk-pill risk-{{ c.risk_level|default('Low', true) }}">{{ c.risk_level }}</span></td>
+                                <td>{% if c.prediction == 'Fraud' %}<span class="text-danger fw-semibold">Anomaly</span>{% else %}<span class="text-success">Clean</span>{% endif %}</td>
+                                <td><span class="badge bg-soft-info text-brand">{{ '%.0f'|format((sim|default(0)) * 100) }}%</span></td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -183,10 +193,10 @@
 
             <div class="d-flex gap-2">
                 <a href="{{ url_for('claims.download_pdf', claim_id=claim.id) }}" class="btn btn-dark btn-lg flex-grow-1">
-                    <i class="fas fa-file-pdf me-2"></i>Download PDF Report
+                    <i class="fas fa-file-pdf me-2"></i>Export Investigation Dossier
                 </a>
                 <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-lg flex-grow-1">
-                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    <i class="fas fa-arrow-left me-2"></i>Return to Dashboard
                 </a>
             </div>
         </div>
@@ -199,29 +209,69 @@ document.addEventListener('DOMContentLoaded', function() {
     var data = [
         {
             domain: { x: [0, 1], y: [0, 1] },
-            value: {{ claim.risk_score }},
-            title: { text: "Risk Intensity" },
+            value: {{ claim.risk_score|default(0) }},
+            title: { text: "Risk Intensity", font: { family: 'Poppins, sans-serif', color: '#0f172a', size: 14 } },
             type: "indicator",
             mode: "gauge+number",
+            number: { font: { family: 'Poppins, sans-serif', color: '#0f172a', size: 32 } },
             gauge: {
-                axis: { range: [null, 100] },
+                axis: { range: [null, 100], tickcolor: "#94a3b8", tickwidth: 1 },
                 bar: { color: "#0ea5e9" },
+                bgcolor: "#ffffff",
+                borderwidth: 1,
+                bordercolor: "#e2e8f0",
                 steps: [
-                    { range: [0, 30], color: "#dcfce7" },
-                    { range: [30, 60], color: "#fef9c3" },
-                    { range: [60, 85], color: "#ffedd5" },
-                    { range: [85, 100], color: "#fee2e2" }
+                    { range: [0, 30], color: "rgba(16, 185, 129, 0.05)" },
+                    { range: [30, 60], color: "rgba(245, 158, 11, 0.05)" },
+                    { range: [60, 85], color: "rgba(239, 68, 68, 0.05)" },
+                    { range: [85, 100], color: "rgba(239, 68, 68, 0.1)" }
                 ],
                 threshold: {
-                    line: { color: "red", width: 4 },
-                    thickness: 0.75,
+                    line: { color: "#ef4444", width: 3 },
+                    thickness: 0.8,
                     value: 50
                 }
             }
         }
     ];
-    var layout = { width: 300, height: 250, margin: { t: 0, b: 0, l: 30, r: 30 } };
+    var layout = { 
+        width: 300, 
+        height: 250, 
+        margin: { t: 0, b: 0, l: 30, r: 30 },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'Inter, sans-serif', color: '#475569' }
+    };
     Plotly.newPlot('riskGauge', data, layout);
+
+    // Contribution Chart
+    {% if breakdown %}
+    const featImp = {{ (breakdown.get('feature_importance', {}) or {}) | tojson }};
+    const featLabels = Object.keys(featImp);
+    const featValues = Object.values(featImp);
+    
+    if (featLabels.length > 0) {
+        const contribData = [{
+            x: featValues,
+            y: featLabels,
+            type: 'bar',
+            orientation: 'h',
+            marker: {
+                color: ['#6366f1', '#10b981', '#0ea5e9'],
+                width: 1
+            }
+        }];
+        const contribLayout = {
+            margin: { t: 10, b: 30, l: 120, r: 20 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Inter, sans-serif', color: '#475569', size: 10 },
+            xaxis: { showgrid: false, zeroline: false },
+            yaxis: { showgrid: false }
+        };
+        Plotly.newPlot('contributionChart', contribData, contribLayout, {displayModeBar: false});
+    }
+    {% endif %}
 });
 </script>
 {% endblock %}
