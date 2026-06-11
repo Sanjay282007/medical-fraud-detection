@@ -7,7 +7,11 @@ MedGuard AI is a Healthcare Insurance Fraud Prevention and Investigation Platfor
 The platform combines Machine Learning, Risk Scoring, Analytics, and Investigation Workflows to support faster and more accurate fraud detection.
 
 ---
+---
+#Live Demo
 
+https://medical-fraud-detection-o9us.onrender.com/
+---
 ## Key Features
 
 ### 🔐 Secure Authentication System
